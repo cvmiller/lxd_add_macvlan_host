@@ -26,8 +26,8 @@
 
 
 function usage {
-               echo "	$0 - creates LXD Host MACVLAN "
-	       echo "	e.g. $0 -D -p "
+               echo "	$0 - creates MACVLAN interface on LXD Host "
+	       echo "	e.g. $0 -a "
 	       echo "	-a  Add MACVLAN interface"
 	       echo "	-r  Remove MACVLAN interface"
 	       echo "	-i  use this interface e.g. eth0"
@@ -37,7 +37,7 @@ function usage {
 	       exit 1
            }
 
-VERSION=0.92
+VERSION=0.93
 
 # initialize some vars
 
@@ -55,10 +55,14 @@ SLEEPTIME=5		#wait for interface to come up
 
 DEBUG=0
 
-while getopts "?hdra" options; do
+# check if there are no arguments 
+if [ $# -eq 0 ]; then
+	usage
+	exit 1
+fi
+
+while getopts "?hdrai:" options; do
   case $options in
-    p ) PING=1
-    	(( numopts++));;
     r ) REMOVE=1
     	(( numopts++));;
     a ) ADDINTF=1
@@ -77,24 +81,62 @@ done
 # remove the options as cli arguments
 shift "$numopts"
 
-# check that there are no arguments left to process
+# check that there are no unused arguments left to process
 if [ $# -ne 0 ]; then
 	usage
 	exit 1
 fi
 
+function log {
+	#
+	#	Common print function 
+	#
+	str=$(echo "$*" | tr '\n' ' ' )
+	if [ -t 1 ]; then 
+		# use colour for headings
+		echo -e "\033[1;31m$str\033[00m" 
+	else
+		# no colour
+		echo -e "$str"
+	fi
+
+	}
+
+function req_sudo {
+	#
+	#	Common sudo authorization function 
+	#
+	# elevate to sudo
+	echo "Requesting Sudo Privlages..."
+	uid=$(sudo id | grep -E -o 'uid=([0-9]+)')
+	if [ "$uid" != "uid=0" ]; then
+		log "Error: Script requires sudo privilages" 
+		usage
+		exit 1
+	fi
+
+	}
+
+
 #======== Actual work performed by script ============
 
-# elevate to sudo
-uid=$(sudo id | grep -E -o 'uid=([0-9]+)')
-if [ "$uid" != "uid=0" ]; then
-	echo "Error: Script requires sudo privilages"
+# determine path to ip command
+ip_cmd=$(which ip)
+if [ "$ip_cmd" != "$ip" ]; then
+	ip="$ip_cmd"
+fi
+
+# validate ethernet Interface
+discovered_intf=$($ip link | grep "$INTF" )
+if [ "$discovered_intf" == "" ]; then
+	log "Error: No interface $INTF found" 
 	usage
 	exit 1
 fi
 
+
 # determine global prefix for $INTF
-prefix=$($ip -6 route | grep $INTF | grep '^2' | cut -f 1 -d " ")
+prefix=$($ip -6 route | grep "$INTF" | grep '^2' | cut -f 1 -d " ")
 
 if (( DEBUG == 1 )); then
 	echo "Global prefix = $prefix"
@@ -105,18 +147,21 @@ if (( ADDINTF == 1 )); then
 	# check that interface doesn't already exist
 	intf=$($ip addr | grep -E -o $MACVLAN_INTF | head -1)
 	if [ "$intf" != "" ]; then
-		echo "WARNING: Interface $intf already exists!"
+		log "WARNING: Interface $intf already exists!"
 		usage
 		exit 1
 	fi
 	
 	# create a local administered MAC address for the MACVLAN interface
-	ETH_ADDR=$(ip link show dev $INTF | grep ether | awk '{print $2}' | sed -r 's/^[0-9a-f]{2}/02/')
+	ETH_ADDR=$(ip link show dev "$INTF" | grep ether | awk '{print $2}' | sed -r 's/^[0-9a-f]{2}/02/')
+
+	# elevate to sudo
+	req_sudo
 
 	# create host MACVLAN interface
-	sudo $ip link add $MACVLAN_INTF link $INTF type macvlan  mode bridge
+	sudo $ip link add $MACVLAN_INTF link "$INTF" type macvlan  mode bridge
 	# set static MAC address
-	sudo $ip link set address $ETH_ADDR dev $MACVLAN_INTF
+	sudo $ip link set address "$ETH_ADDR" dev "$MACVLAN_INTF"
 	
 	# let user know something is happening
 	echo "Working ...."
@@ -127,12 +172,16 @@ if (( ADDINTF == 1 )); then
 	sudo $ip route add "$prefix" dev $MACVLAN_INTF metric 100 pref high
 	
 	echo "Interface: $MACVLAN_INTF added"
-else	
+elif (( REMOVE == 1 )); then	
+
+	# elevate to sudo
+	req_sudo
+
 	# remove route so that host will prefer MACVLAN interface
 	sudo $ip route del "$prefix" dev $MACVLAN_INTF metric 100
 	
 	# Remove host MACVLAN interface
-	sudo $ip link del $MACVLAN_INTF link $INTF type macvlan  mode bridge
+	sudo $ip link del $MACVLAN_INTF link "$INTF" type macvlan  mode bridge
 	
 	echo "Interface: $MACVLAN_INTF REMOVED"
 fi
