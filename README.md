@@ -9,7 +9,7 @@ LXD also support **MACVLAN** type of interface with eliminates the complexity of
 In order for your linux container to reach the internet, it easy to use a profile which attaches the NIC interface of your container to a MACVLAN interface. With the host interface being **eth0**, a typical profile would look like:
 
 ```
-$ lxc profile show enet
+$ lxc profile show macvlan
 config: {}
 description: Default LXD profile
 devices:
@@ -21,15 +21,15 @@ devices:
     path: /
     pool: default
     type: disk
-name: enet
+name: macvlan
 used_by:
 - /1.0/instances/test
 - /1.0/instances/lxdware
 ```
-You would launch a container using the MACVLAN profile using `-p enet`
+You would launch a container using the MACVLAN profile using `-p macvlan`
 
 ```
-lxc launch -p enet images:alpine/3.16 test
+lxc launch -p macvlan images:alpine/3.16 test
 ```
 
 Your container should get IP addresses from your router (via DHCP and SLAAC), rather than having to hard code them. And your container should be able to ping the outside world (e.g. the internet)
