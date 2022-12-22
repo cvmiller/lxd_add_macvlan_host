@@ -39,7 +39,7 @@ function usage {
 	       exit 1
            }
 
-VERSION=0.95
+VERSION=0.96
 
 # initialize some vars
 
@@ -71,6 +71,7 @@ while getopts "?hdra4i:" options; do
     a ) ADDINTF=1
     	(( numopts++));;
     4 ) IPV4=1
+		ADDINTF=1
     	(( numopts++));;
     i ) INTF=$OPTARG
     	numopts=$(( numopts + 2));;
