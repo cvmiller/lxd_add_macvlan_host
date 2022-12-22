@@ -6,7 +6,7 @@ LXD also support **MACVLAN** type of interface with eliminates the complexity of
 
 ## A word about creating MACVLAN interfaces in LXD
 
-In order for your linux container to reach the internet, it easy to use a profile which attaches the NIC interface of your container to a MACVLAN interface. With the host interface being **eth0**, a typical profile would look like:
+In order for your linux container to reach the internet, it easy to use a profile which attaches the *Ethernet NIC* interface of your container to a MACVLAN interface. With the host interface being **eth0**, a typical profile would look like:
 
 ```
 $ lxc profile show macvlan
@@ -44,17 +44,18 @@ The script should be run on the **LXD Host** *not* in the container (which alrea
 
 `lxd_add_macvlan_host.sh` requires sudo privileges (to add interfaces and adjust routes), and will request a password when required.
 
-There are two parameters `-a` to add the **MACVLAN** interface to the host, and `-r` to remove the interface.
+The parameters are: `-a` to add the **MACVLAN** interface to the host, and `-r` to remove the interface, and `-4` for IPv4 support.
 
 ```
 $ ./lxd_add_macvlan_host.sh -h
 	./lxd_add_macvlan_host.sh - creates MACVLAN interface on LXD Host 
 	e.g. ./lxd_add_macvlan_host.sh -a 
 	-a  Add MACVLAN interface
+	-4  Add MACVLAN IPv4 interface
 	-r  Remove MACVLAN interface
 	-i  use this interface e.g. eth0
 	
- By Craig Miller - Version: 0.93
+ By Craig Miller - Version: 0.95
 
 ```
 
@@ -117,7 +118,7 @@ $ ip addr
 
 #### Removing a MACVLAN interface on the LXD Host
 
-Removing a MACVLAN to the host is also easy. Initially, I put in the remove option for ease of testing, but there may be a need for removing the MACVLAN interface on the *HOST*.
+Removing a MACVLAN to the host is also easy. Initially, I put in the remove option for ease of testing, but there may be a need for removing the MACVLAN interface on the *LXD HOST*.
 
 ```
 $ ./lxd_add_macvlan_host.sh -r
@@ -137,7 +138,9 @@ For two reasons:
 
 The script requires the most of the shell script collection of utilities (e.g. ip, grep, awk) which is probably already installed on your Linux system.
 
-The script currently only supports global IPv6 addresses. This means in your container, you will have to use the host MACVLAN IPv6 address to reach the host. IPv4 is not currently supported.
+MACVLAN interfaces **MUST** use **Ethernet** interfaces, wireless (aka Wifi) are not supported. This is a limitation of the wireless 802.11 protocol.
+
+The script prefers global IPv6 addresses. This means in your container, you will have to use the host MACVLAN IPv6 address to reach the host. Support for IPv4 was added in version 0.95
 
 
 

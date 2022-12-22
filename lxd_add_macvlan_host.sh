@@ -19,9 +19,10 @@
 #	
 #	Assumptions:
 #		Uses sudo privilages
-#		Only works for IPv6 global Unicast Addresses (at the moment)
+#		Prefers IPv6 GUA, if present, over ULA
+#		If multiple GUA prefixes are present, script will pick the first it finds
 #
-#
+#	22 Dec 2022 - updated to support IPv4
 #
 
 
@@ -29,6 +30,7 @@ function usage {
                echo "	$0 - creates MACVLAN interface on LXD Host "
 	       echo "	e.g. $0 -a "
 	       echo "	-a  Add MACVLAN interface"
+	       echo "	-4  Add MACVLAN IPv4 interface"
 	       echo "	-r  Remove MACVLAN interface"
 	       echo "	-i  use this interface e.g. eth0"
 
@@ -37,7 +39,7 @@ function usage {
 	       exit 1
            }
 
-VERSION=0.93
+VERSION=0.95
 
 # initialize some vars
 
@@ -50,6 +52,7 @@ MACVLAN_INTF="host-shim"
 
 ADDINTF=0
 REMOVE=0
+IPV4=0
 
 SLEEPTIME=5		#wait for interface to come up
 
@@ -61,11 +64,13 @@ if [ $# -eq 0 ]; then
 	exit 1
 fi
 
-while getopts "?hdrai:" options; do
+while getopts "?hdra4i:" options; do
   case $options in
     r ) REMOVE=1
     	(( numopts++));;
     a ) ADDINTF=1
+    	(( numopts++));;
+    4 ) IPV4=1
     	(( numopts++));;
     i ) INTF=$OPTARG
     	numopts=$(( numopts + 2));;
@@ -134,12 +139,19 @@ if [ "$discovered_intf" == "" ]; then
 	exit 1
 fi
 
+prefix=""
+# determine global & ULA prefix for $INTF
+prefix=$($ip -6 route | grep "$INTF" | grep '^2' | cut -f 1 -d " " | head -1)
+ula_prefix=$($ip -6 route | grep "$INTF" | grep '^fd' | cut -f 1 -d " " | head -1)
 
-# determine global prefix for $INTF
-prefix=$($ip -6 route | grep "$INTF" | grep '^2' | cut -f 1 -d " ")
+# determine v4 subnet
+v4_prefix=""
+if (( IPV4 == 1 )); then
+	v4_prefix=$($ip -4 route | grep eth0 | grep -E '(^192|^10|^172)' | cut -f 1 -d " " | head -1)
+fi
 
 if (( DEBUG == 1 )); then
-	echo "Global prefix = $prefix"
+	echo "Global prefix = $prefix | ULA prefix = $ula_prefix | IPv4 subnet = $v4_prefix"
 fi
 
 # add interface and route
@@ -168,8 +180,21 @@ if (( ADDINTF == 1 )); then
 	# give interface time to come up
 	sleep $SLEEPTIME
 	
-	# add route so that host will prefer MACVLAN interface
-	sudo $ip route add "$prefix" dev $MACVLAN_INTF metric 100 pref high
+	# add route so that host will prefer MACVLAN interface, prefer global over ULA
+	if [ "$prefix" != "" ]; then
+		sudo $ip route add "$prefix" dev $MACVLAN_INTF metric 100 pref high
+	else
+		sudo $ip route add "$ula_prefix" dev $MACVLAN_INTF metric 100 pref high
+	fi
+	
+	# add IPv4 route
+	if (( IPV4 == 1 )); then
+		echo "Waiting for IPv4 DHCP ...."
+		# give interface time to come up
+		sleep $SLEEPTIME
+	
+		sudo $ip route add "$v4_prefix" dev $MACVLAN_INTF metric 100 pref high
+	fi
 	
 	echo "Interface: $MACVLAN_INTF added"
 elif (( REMOVE == 1 )); then	
@@ -178,7 +203,9 @@ elif (( REMOVE == 1 )); then
 	req_sudo
 
 	# remove route so that host will prefer MACVLAN interface
-	sudo $ip route del "$prefix" dev $MACVLAN_INTF metric 100
+	sudo $ip route del "$prefix" dev $MACVLAN_INTF metric 100 2> /dev/null
+	sudo $ip route del "$ula_prefix" dev $MACVLAN_INTF metric 100 2> /dev/null
+	sudo $ip route del "$v4_prefix" dev $MACVLAN_INTF metric 100 2> /dev/null
 	
 	# Remove host MACVLAN interface
 	sudo $ip link del $MACVLAN_INTF link "$INTF" type macvlan  mode bridge
@@ -193,6 +220,7 @@ if (( DEBUG == 1 )); then
 	$ip addr
 
 	$ip -6 route
+	$ip -4 route
 fi
 
 # let the user know the script is done
