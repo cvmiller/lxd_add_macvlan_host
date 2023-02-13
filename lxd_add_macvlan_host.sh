@@ -39,7 +39,7 @@ function usage {
 	       exit 1
            }
 
-VERSION=0.96
+VERSION=0.97
 
 # initialize some vars
 
@@ -148,7 +148,7 @@ ula_prefix=$($ip -6 route | grep "$INTF" | grep '^fd' | cut -f 1 -d " " | head -
 # determine v4 subnet
 v4_prefix=""
 if (( IPV4 == 1 )); then
-	v4_prefix=$($ip -4 route | grep eth0 | grep -E '(^192|^10|^172)' | cut -f 1 -d " " | head -1)
+	v4_prefix=$($ip -4 route | grep "$INTF" | grep -E '(^192|^10|^172)' | cut -f 1 -d " " | head -1)
 fi
 
 if (( DEBUG == 1 )); then
@@ -166,7 +166,7 @@ if (( ADDINTF == 1 )); then
 	fi
 	
 	# create a local administered MAC address for the MACVLAN interface
-	ETH_ADDR=$(ip link show dev "$INTF" | grep ether | awk '{print $2}' | sed -r 's/^[0-9a-f]{2}/02/')
+	ETH_ADDR=$($ip link show dev "$INTF" | grep ether | awk '{print $2}' | sed -r 's/^[0-9a-f]{2}/02/')
 
 	# elevate to sudo
 	req_sudo
