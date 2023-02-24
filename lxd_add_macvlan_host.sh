@@ -39,7 +39,7 @@ function usage {
 	       exit 1
            }
 
-VERSION=0.97
+VERSION=0.98
 
 # initialize some vars
 
@@ -173,8 +173,9 @@ if (( ADDINTF == 1 )); then
 
 	# create host MACVLAN interface
 	sudo $ip link add $MACVLAN_INTF link "$INTF" type macvlan  mode bridge
-	# set static MAC address
+	# set static MAC address & set interface to UP
 	sudo $ip link set address "$ETH_ADDR" dev "$MACVLAN_INTF"
+	sudo $ip link set up  dev "$MACVLAN_INTF"
 	
 	# let user know something is happening
 	echo "Working ...."
