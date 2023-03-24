@@ -39,7 +39,7 @@ function usage {
 	       exit 1
            }
 
-VERSION=0.98
+VERSION=0.99
 
 # initialize some vars
 
@@ -113,10 +113,10 @@ function req_sudo {
 	#	Common sudo authorization function 
 	#
 	# elevate to sudo
-	echo "Requesting Sudo Privlages..."
+	echo "Requesting Sudo Privileges ..."
 	uid=$(sudo id | grep -E -o 'uid=([0-9]+)')
 	if [ "$uid" != "uid=0" ]; then
-		log "Error: Script requires sudo privilages" 
+		log "Error: Script requires sudo privileges" 
 		usage
 		exit 1
 	fi
