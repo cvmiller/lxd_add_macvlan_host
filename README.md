@@ -52,10 +52,11 @@ $ ./lxd_add_macvlan_host.sh -h
 	e.g. ./lxd_add_macvlan_host.sh -a 
 	-a  Add MACVLAN interface
 	-4  Add MACVLAN IPv4 interface
+	-f  Fix MACVLAN IPv4 route
 	-r  Remove MACVLAN interface
 	-i  use this interface e.g. eth0
 	
- By Craig Miller - Version: 0.95
+ By Craig Miller - Version: 1.0
 
 ```
 
@@ -142,7 +143,7 @@ MACVLAN interfaces **MUST** use **Ethernet** interfaces, wireless (aka Wifi) are
 
 The script prefers global IPv6 addresses. This means in your container, you will have to use the host MACVLAN IPv6 address to reach the host. Support for IPv4 was added in version 0.95
 
-
+Occasionally, the container will *lose* IPv4 connectivity to the LXD Host. For some reason, the **preferred route** to the MACVLAN network (inside the LXD Host) is removed. In version 1.0, added the parameter `-f` to fix the IPv4 route. After adding the host-shim interface with `./lxd_add_macvlan_host.sh -4`, it is possible at a later time to fix the IPv4 route with `./lxd_add_macvlan_host.sh -f`, it is no longer necessary to *remove* and *re-add* the *host-shim* interface. IPv6 does not have this problem.
 
 
 
