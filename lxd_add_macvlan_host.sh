@@ -31,6 +31,7 @@ function usage {
 	       echo "	e.g. $0 -a "
 	       echo "	-a  Add MACVLAN interface"
 	       echo "	-4  Add MACVLAN IPv4 interface"
+	       echo "	-f  Fix MACVLAN IPv4 route"
 	       echo "	-r  Remove MACVLAN interface"
 	       echo "	-i  use this interface e.g. eth0"
 
@@ -39,7 +40,7 @@ function usage {
 	       exit 1
            }
 
-VERSION=0.99
+VERSION=1.0
 
 # initialize some vars
 
@@ -50,6 +51,7 @@ ip="/usr/sbin/ip"
 INTF="eth0"
 MACVLAN_INTF="host-shim"
 
+FIXROUTE=0
 ADDINTF=0
 REMOVE=0
 IPV4=0
@@ -64,8 +66,10 @@ if [ $# -eq 0 ]; then
 	exit 1
 fi
 
-while getopts "?hdra4i:" options; do
+while getopts "?hdra4i:f" options; do
   case $options in
+    f ) FIXROUTE=1
+    	(( numopts++));;
     r ) REMOVE=1
     	(( numopts++));;
     a ) ADDINTF=1
@@ -113,7 +117,7 @@ function req_sudo {
 	#	Common sudo authorization function 
 	#
 	# elevate to sudo
-	echo "Requesting Sudo Privileges ..."
+	echo "Requesting Sudo Privileges..."
 	uid=$(sudo id | grep -E -o 'uid=([0-9]+)')
 	if [ "$uid" != "uid=0" ]; then
 		log "Error: Script requires sudo privileges" 
@@ -215,6 +219,32 @@ elif (( REMOVE == 1 )); then
 	echo "Interface: $MACVLAN_INTF REMOVED"
 fi
 
+# Fix IPv4 route - which occationally gets removed on some hosts
+if (( FIXROUTE == 1 )); then
+	# check that interface does already exist
+	intf=$($ip addr | grep -E -o $MACVLAN_INTF | head -1)
+	if [ "$intf" == "" ]; then
+		log "WARNING: Interface $intf needs to be created, use: $0 -4 "
+		usage
+		exit 1
+	fi
+	# check that IPv4 route is needed
+	v4_route=""
+	v4_route=$($ip -4 route | grep $MACVLAN_INTF | grep "metric 100")
+	if [ "$v4_route" != "" ]; then
+		log "WARNING: IPv4 Route for $intf already exists! Fix Route not needed"
+		usage
+		exit 1
+	fi
+
+	# let user know something is happening
+	echo "Fixing IPv4 route ...."
+	# elevate to sudo
+	req_sudo
+
+	v4_prefix=$($ip -4 route | grep "$INTF" | grep -E '(^192|^10|^172)' | cut -f 1 -d " " | head -1)
+	sudo $ip -4 route add "$v4_prefix" dev $MACVLAN_INTF metric 100 pref high
+fi
 
 if (( DEBUG == 1 )); then
 	# show ip interfaces and routes
